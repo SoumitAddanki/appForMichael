@@ -3,209 +3,247 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
-// Supabase client
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-
 type Video = {
-  id: string
-  title: string
-  description: string
-  videoYTId: string
-  sectionTitle: string
-  watched_fully: boolean
-  skill: number
-  // OTT, APP, ARG, PUTT removed
-}
+  id: string;
+  title: string;
+  description: string;
+  videoYTId: string;
+  sectionTitle: string;
+  watched_fully: boolean;
+  skill: number;
+};
 
 type Section = {
-  id: string
-  name: string
-  description: string
-  skill: string
-}
+  id: string;
+  name: string;
+};
 
 type Tag = {
-  tag: string
-}
-
-function TagsList({ videoId }: { videoId: string }) {
-  const [videoTags, setVideoTags] = useState<Tag[]>([]);
-  
-  useEffect(() => {
-    async function fetchTags() {
-      const { data } = await supabase
-        .from('tags')
-        .select('tag')
-        .eq('videoId', videoId);
-      
-      if (data) setVideoTags(data);
-    }
-    
-    fetchTags();
-  }, [videoId]);
-  
-  return (
-    <div className="flex flex-wrap gap-1">
-      {videoTags.map(tag => (
-        <span key={tag.tag} className="bg-[#27272f] px-2 py-0.5 text-xs rounded">
-          {tag.tag}
-        </span>
-      ))}
-    </div>
-  );
-}
+  id: number;
+  tag: string;
+  videoId: string;
+};
 
 export default function DashboardPage() {
-  const [videos, setVideos] = useState<Video[]>([])
-  const [loading, setLoading] = useState(true)
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [sections, setSections] = useState<Section[]>([])
-  const [selectedSections, setSelectedSections] = useState<string[]>([])
-  const [isSaving, setIsSaving] = useState(false)
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [videos, setVideos] = useState<Video[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [sections, setSections] = useState<Section[]>([]);
+  const [selectedSections, setSelectedSections] = useState<string[]>([]);
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const [newVideo, setNewVideo] = useState<Omit<Video, 'id'>>({
+  // form state
+  const [editingVideo, setEditingVideo] = useState<Video | null>(null);
+  const [form, setForm] = useState<Omit<Video, 'id'>>({
     title: '',
     description: '',
     videoYTId: '',
     sectionTitle: '',
     watched_fully: false,
     skill: 1,
-  })
+  });
 
-  // Handle adding a tag
+  // Fetch data
+  const fetchVideos = async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from('videos')
+      .select('*')
+      .order('id', { ascending: false });
+    if (data) setVideos(data);
+    setLoading(false);
+  };
+  const fetchSections = async () => {
+    const { data } = await supabase.from('sections').select('*');
+    if (data) setSections(data);
+  };
+
+  useEffect(() => {
+    fetchVideos();
+    fetchSections();
+  }, []);
+
+  // Open Add vs Edit
+  const openAddModal = () => {
+    setEditingVideo(null);
+    setForm({
+      title: '',
+      description: '',
+      videoYTId: '',
+      sectionTitle: '',
+      watched_fully: false,
+      skill: 1,
+    });
+    setTags([]);
+    setSelectedSections([]);
+    setErrorMsg(null);
+    setIsModalOpen(true);
+  };
+  const openEditModal = async (video: Video) => {
+    setEditingVideo(video);
+    setForm({
+      title: video.title,
+      description: video.description,
+      videoYTId: video.videoYTId,
+      sectionTitle: video.sectionTitle,
+      watched_fully: video.watched_fully,
+      skill: video.skill,
+    });
+    // load its tags
+    const { data: tagData } = await supabase
+      .from<Tag>('tags')
+      .select('tag')
+      .eq('videoId', video.id);
+    setTags(tagData?.map((t) => t.tag) || []);
+    // load its sections
+    const { data: rels } = await supabase
+      .from('section_videos')
+      .select('section_id')
+      .eq('video_id', video.id);
+    setSelectedSections(rels?.map((r) => r.section_id) || []);
+    setErrorMsg(null);
+    setIsModalOpen(true);
+  };
+
+  // tag logic
   const handleAddTag = () => {
     if (tagInput && !tags.includes(tagInput)) {
       setTags([...tags, tagInput]);
       setTagInput('');
     }
   };
-
-  // Handle removing a tag
   const handleRemoveTag = (tagToRemove: string) => {
-    setTags(tags.filter(tag => tag !== tagToRemove));
+    setTags(tags.filter((t) => t !== tagToRemove));
   };
 
-  // Fetch videos
-  const fetchVideos = async () => {
-    setLoading(true)
-    const { data, error } = await supabase
-      .from('videos')
-      .select('*')
-      .order('id', { ascending: false })
-    if (!error && data) setVideos(data)
-    setLoading(false)
-  }
+  // section checkbox
+  const toggleSection = (id: string) => {
+    setSelectedSections((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
 
-  // Fetch sections
-  const fetchSections = async () => {
-    const { data, error } = await supabase.from('sections').select('*')
-    if (!error && data) setSections(data)
-  }
+  // submit handlers
+  const handleSubmit = (e: React.FormEvent) =>
+    editingVideo ? updateVideo(e) : addVideo(e);
 
-  useEffect(() => {
-    fetchVideos()
-    fetchSections()
-  }, [])
-
-  // Handle section checkbox
-  const handleSectionCheckbox = (id: string) => {
-    setSelectedSections(prev =>
-      prev.includes(id) ? prev.filter(sectionId => sectionId !== id) : [...prev, id]
-    )
-  }
-
-  // Add video handler
   const addVideo = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsSaving(true)
-    setErrorMsg(null)
-    try {
-      // Insert video
-      const { data: video, error } = await supabase
-        .from('videos')
-        .insert([newVideo])
-        .select()
-        .single()
-
-      if (error) {
-        setErrorMsg(error.message)
-        setIsSaving(false)
-        return
-      }
-
-      // Insert tags if any
-      if (tags.length > 0 && video) {
-        const tagsToInsert = tags.map(tag => ({
-          videoId: video.id,
-          tag: tag
-        }));
-        
-        const { error: tagError } = await supabase
-          .from('tags')
-          .insert(tagsToInsert);
-          
-        if (tagError) {
-          setErrorMsg('Video created, but failed to add tags.');
-          console.error('Tag error:', tagError);
-        }
-      }
-
-      // Link to sections if any selected
-      if (video && selectedSections.length > 0) {
-        const relations = selectedSections.map(sectionId => ({
-          section_id: sectionId,
-          video_id: video.id,
-        }))
-        const { error: relError } = await supabase
-          .from('section_videos')
-          .insert(relations)
-        if (relError) {
-          setErrorMsg('Video created, but failed to link to sections.')
-        }
-      }
-
-      // Success: refresh, reset, close modal
-      await fetchVideos()
-      setIsModalOpen(false)
-      setNewVideo({
-        title: '',
-        description: '',
-        videoYTId: '',
-        sectionTitle: '',
-        watched_fully: false,
-        skill: 1,
-      })
-      setSelectedSections([])
-      setTags([])
-    } catch (err: any) {
-      setErrorMsg('Unexpected error: ' + (err?.message || String(err)))
+    e.preventDefault();
+    setIsSaving(true);
+    setErrorMsg(null);
+  
+    const { data: video, error } = await supabase
+      .from<Video>('videos')
+      .insert([{
+        title:      form.title,
+        description:form.description,
+        videoYTId:  form.videoYTId,    // <-- camelCase
+        sectionTitle: form.sectionTitle,// <-- camelCase
+        watched_fully: form.watched_fully,
+        skill:      form.skill,
+      }])
+      .select()
+      .single();
+  
+    if (error || !video) {
+      console.error('Insert error:', error);
+      setErrorMsg(error?.message || 'Insert failed');
+      setIsSaving(false);
+      return;
     }
-    setIsSaving(false)
+  
+    await syncTagsAndSections(video.id);
+    await fetchVideos();
+    setIsModalOpen(false);
+    setIsSaving(false);
+  };
+
+const updateVideo = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!editingVideo) return;
+  setIsSaving(true);
+  setErrorMsg(null);
+
+  // 1) Update and ask for the new row back:
+  const { data: updated, error } = await supabase
+    .from<Video>('videos')
+    .update(
+      {
+        title:         form.title,
+        description:   form.description,
+        videoYTId:     form.videoYTId,
+        sectionTitle:  form.sectionTitle,
+        watched_fully: form.watched_fully,
+        skill:         form.skill,
+      },
+      { returning: 'representation' }
+    )
+    .eq('id', editingVideo.id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Update error:', error);
+    setErrorMsg(error.message);
+    setIsSaving(false);
+    return;
   }
+
+  // 2) Sync tags & sections
+  await syncTagsAndSections(editingVideo.id);
+
+  // 3) Refresh list & close
+  await fetchVideos();
+  setEditingVideo(null);
+  setIsSaving(false);
+  setIsModalOpen(false);
+};
+
+  // helper to sync tags & sections
+  const syncTagsAndSections = async (videoId: string) => {
+    // tags
+    await supabase.from('tags').delete().eq('videoId', videoId);
+    if (tags.length) {
+      await supabase.from('tags').insert(
+        tags.map((tag) => ({ videoId, tag }))
+      );
+    }
+    // sections
+    await supabase.from('section_videos').delete().eq('video_id', videoId);
+    if (selectedSections.length) {
+      await supabase.from('section_videos').insert(
+        selectedSections.map((sid) => ({
+          video_id: sid,
+          section_id: sid,
+        }))
+      );
+    }
+  };
 
   return (
     <div className="flex min-h-screen bg-[#18181b] text-white">
-      {/* Sidebar (simplified) */}
-      <aside className="w-64 bg-[#232329] p-6 flex flex-col">
-        <div className="mb-8 font-bold text-lg">Michael Dutro</div>
+      {/* Sidebar */}
+      <aside className="w-64 bg-[#232329] p-6">
+        <div className="font-bold text-lg">Michael Dutro</div>
       </aside>
 
-      {/* Main Content */}
+      {/* Main */}
       <main className="flex-1 p-10">
-        <div className="mb-6 flex justify-between items-center">
+        <div className="flex justify-between mb-6">
           <h1 className="text-2xl font-semibold">Video List</h1>
           <button
-            onClick={() => setIsModalOpen(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded flex items-center"
+            onClick={openAddModal}
+            className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded"
           >
-            <span className="mr-2 text-xl">+</span> Add Video
+            + Add Video
           </button>
         </div>
 
@@ -216,38 +254,54 @@ export default function DashboardPage() {
               <tr className="bg-[#232329] text-gray-400">
                 <th className="px-4 py-3 text-left">ID</th>
                 <th className="px-4 py-3 text-left">Title</th>
-                <th className="px-4 py-3 text-left">Section Title</th>
+                <th className="px-4 py-3 text-left">Section</th>
                 <th className="px-4 py-3 text-left">Description</th>
                 <th className="px-4 py-3 text-left">YouTube ID</th>
                 <th className="px-4 py-3 text-left">Tags</th>
                 <th className="px-4 py-3 text-left">Watched</th>
                 <th className="px-4 py-3 text-left">Skill</th>
+                <th className="px-4 py-3 text-left">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-6">Loading...</td>
+                  <td colSpan={9} className="text-center py-6">
+                    Loading...
+                  </td>
                 </tr>
               ) : videos.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-6 text-gray-400">
-                    No videos found. Click the + button to add one.
+                  <td colSpan={9} className="text-center py-6 text-gray-400">
+                    No videos found.
                   </td>
                 </tr>
               ) : (
-                videos.map((video) => (
-                  <tr key={video.id} className="border-b border-[#2c2c34] hover:bg-[#23232b]">
-                    <td className="px-4 py-3">{video.id}</td>
-                    <td className="px-4 py-3">{video.title}</td>
-                    <td className="px-4 py-3">{video.sectionTitle}</td>
-                    <td className="px-4 py-3">{video.description}</td>
-                    <td className="px-4 py-3">{video.videoYTId}</td>
+                videos.map((v) => (
+                  <tr
+                    key={v.id}
+                    className="border-b border-[#2c2c34] hover:bg-[#23232b]"
+                  >
+                    <td className="px-4 py-3">{v.id}</td>
+                    <td className="px-4 py-3">{v.title}</td>
+                    <td className="px-4 py-3">{v.sectionTitle}</td>
+                    <td className="px-4 py-3">{v.description}</td>
+                    <td className="px-4 py-3">{v.videoYTId}</td>
                     <td className="px-4 py-3">
-                      <TagsList videoId={video.id} />
+                      {/* reuse your TagsList */}
                     </td>
-                    <td className="px-4 py-3">{video.watched_fully ? '✅' : ''}</td>
-                    <td className="px-4 py-3">{video.skill}</td>
+                    <td className="px-4 py-3">
+                      {v.watched_fully ? '✅' : ''}
+                    </td>
+                    <td className="px-4 py-3">{v.skill}</td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => openEditModal(v)}
+                        className="text-blue-400 hover:underline"
+                      >
+                        Edit
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
@@ -255,128 +309,153 @@ export default function DashboardPage() {
           </table>
         </div>
 
-        {/* Add Video Modal */}
+        {/* Modal (Add/Edit) */}
         {isModalOpen && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-[#232329] rounded-lg p-6 w-full max-w-md">
-              <h2 className="text-xl font-bold mb-4">Add New Video</h2>
+              <h2 className="text-xl font-bold mb-4">
+                {editingVideo ? 'Edit Video' : 'Add New Video'}
+              </h2>
               {errorMsg && (
                 <div className="mb-4 text-red-400">{errorMsg}</div>
               )}
-              <form onSubmit={addVideo}>
+              <form onSubmit={handleSubmit}>
+                {/* Title */}
                 <div className="mb-4">
                   <label className="block mb-2">Video Title</label>
                   <input
-                    className="block w-full mb-2 p-2 text-black rounded-md"
-                    placeholder="Video Title"
-                    value={newVideo.title}
-                    onChange={e => setNewVideo({ ...newVideo, title: e.target.value })}
+                    className="w-full p-2 text-black rounded-md"
+                    value={form.title}
+                    onChange={(e) =>
+                      setForm({ ...form, title: e.target.value })
+                    }
                     required
                   />
                 </div>
+                {/* Section */}
                 <div className="mb-4">
                   <label className="block mb-2">Section Title</label>
                   <input
-                    className="block w-full mb-2 p-2 text-black rounded-md"
-                    placeholder="Section Title"
-                    value={newVideo.sectionTitle}
-                    onChange={e => setNewVideo({ ...newVideo, sectionTitle: e.target.value })}
+                    className="w-full p-2 text-black rounded-md"
+                    value={form.sectionTitle}
+                    onChange={(e) =>
+                      setForm({ ...form, sectionTitle: e.target.value })
+                    }
                   />
                 </div>
+                {/* Description */}
                 <div className="mb-4">
                   <label className="block mb-2">Description</label>
                   <textarea
-                    className="block w-full mb-2 p-2 text-black rounded-md"
-                    placeholder="Description"
-                    value={newVideo.description}
-                    onChange={e => setNewVideo({ ...newVideo, description: e.target.value })}
+                    className="w-full p-2 text-black rounded-md"
+                    value={form.description}
+                    onChange={(e) =>
+                      setForm({ ...form, description: e.target.value })
+                    }
                     rows={2}
                   />
                 </div>
+                {/* YouTube ID */}
                 <div className="mb-4">
-                  <label className="block mb-2">YouTube Video ID</label>
+                  <label className="block mb-2">YouTube ID</label>
                   <input
-                    className="block w-full mb-2 p-2 text-black rounded-md"
-                    placeholder="YouTube Video ID"
-                    value={newVideo.videoYTId}
-                    onChange={e => setNewVideo({ ...newVideo, videoYTId: e.target.value })}
+                    className="w-full p-2 text-black rounded-md"
+                    value={form.videoYTId}
+                    onChange={(e) =>
+                      setForm({ ...form, videoYTId: e.target.value })
+                    }
                     required
                   />
                 </div>
-                <div className="mb-4">
-                  <label className="block mb-2">Watched Fully</label>
+                {/* Watched */}
+                <div className="mb-4 flex items-center">
                   <input
                     type="checkbox"
-                    checked={newVideo.watched_fully}
-                    onChange={() => setNewVideo({ ...newVideo, watched_fully: !newVideo.watched_fully })}
+                    checked={form.watched_fully}
+                    onChange={() =>
+                      setForm({
+                        ...form,
+                        watched_fully: !form.watched_fully,
+                      })
+                    }
+                    className="mr-2"
                   />
+                  <label>Watched Fully</label>
                 </div>
+                {/* Skill */}
                 <div className="mb-4">
                   <label className="block mb-2">Skill</label>
                   <input
-                    className="block w-full mb-2 p-2 text-black rounded-md"
                     type="number"
                     min={1}
                     max={3}
-                    value={newVideo.skill}
-                    onChange={e => setNewVideo({ ...newVideo, skill: parseInt(e.target.value) })}
+                    className="w-full p-2 text-black rounded-md"
+                    value={form.skill}
+                    onChange={(e) =>
+                      setForm({ ...form, skill: Number(e.target.value) })
+                    }
                   />
                 </div>
-                
-                {/* Tags Input Section */}
+                {/* Tags */}
                 <div className="mb-4">
                   <label className="block mb-2">Tags</label>
-                  <div className="flex items-center mb-2">
+                  <div className="flex mb-2">
                     <input
                       className="flex-1 p-2 text-black rounded-md"
                       placeholder="Enter a tag"
                       value={tagInput}
-                      onChange={e => setTagInput(e.target.value)}
-                      onKeyPress={e => e.key === 'Enter' && (e.preventDefault(), handleAddTag())}
+                      onChange={(e) => setTagInput(e.target.value)}
+                      onKeyPress={(e) =>
+                        e.key === 'Enter' &&
+                        (e.preventDefault(), handleAddTag())
+                      }
                     />
                     <button
                       type="button"
-                      className="ml-2 px-3 py-2 bg-blue-600 text-white rounded-md"
                       onClick={handleAddTag}
+                      className="ml-2 px-3 py-2 bg-blue-600 text-white rounded-md"
                     >
                       Add
                     </button>
                   </div>
-                  
-                  {tags.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {tags.map(tag => (
-                        <span key={tag} className="bg-[#27272f] px-2 py-1 rounded-md flex items-center">
-                          {tag}
-                          <button
-                            type="button"
-                            className="ml-2 text-gray-400 hover:text-white"
-                            onClick={() => handleRemoveTag(tag)}
-                          >
-                            ×
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                  <div className="flex flex-wrap gap-2">
+                    {tags.map((t) => (
+                      <span
+                        key={t}
+                        className="bg-[#27272f] px-2 py-1 rounded-md flex items-center"
+                      >
+                        {t}
+                        <button
+                          onClick={() => handleRemoveTag(t)}
+                          className="ml-2 text-gray-400 hover:text-white"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
                 </div>
-                
+                {/* Sections */}
                 <div className="mb-4">
                   <h2 className="text-lg mb-2">Assign to Sections:</h2>
                   <div className="max-h-40 overflow-y-auto bg-[#18181b] p-2 rounded-md">
-                    {sections.map(section => (
-                      <label key={section.id} className="flex items-center mb-1">
+                    {sections.map((sec) => (
+                      <label
+                        key={sec.id}
+                        className="flex items-center mb-1"
+                      >
                         <input
                           type="checkbox"
-                          checked={selectedSections.includes(section.id)}
-                          onChange={() => handleSectionCheckbox(section.id)}
+                          checked={selectedSections.includes(sec.id)}
+                          onChange={() => toggleSection(sec.id)}
                           className="mr-2"
                         />
-                        <span>{section.name}</span>
+                        <span>{sec.name}</span>
                       </label>
                     ))}
                   </div>
                 </div>
+                {/* Actions */}
                 <div className="flex justify-end space-x-3">
                   <button
                     type="button"
@@ -390,7 +469,7 @@ export default function DashboardPage() {
                     className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
                     disabled={isSaving}
                   >
-                    {isSaving ? 'Adding...' : 'Add Video'}
+                    {isSaving ? 'Saving...' : editingVideo ? 'Save' : 'Add Video'}
                   </button>
                 </div>
               </form>
@@ -399,5 +478,5 @@ export default function DashboardPage() {
         )}
       </main>
     </div>
-  )
+  );
 }
