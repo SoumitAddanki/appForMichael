@@ -9,18 +9,16 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
+
 type Video = {
   id: string
-  title: string         // Changed from video_title
+  title: string
   description: string
-  videoYTId: string     // Changed from video_link
-  sectionTitle: string  // New field
+  videoYTId: string
+  sectionTitle: string
   watched_fully: boolean
   skill: number
-  OTT: boolean
-  APP: boolean
-  ARG: boolean
-  PUTT: boolean
+  // OTT, APP, ARG, PUTT removed
 }
 
 type Section = {
@@ -28,6 +26,37 @@ type Section = {
   name: string
   description: string
   skill: string
+}
+
+type Tag = {
+  tag: string
+}
+
+function TagsList({ videoId }: { videoId: string }) {
+  const [videoTags, setVideoTags] = useState<Tag[]>([]);
+  
+  useEffect(() => {
+    async function fetchTags() {
+      const { data } = await supabase
+        .from('tags')
+        .select('tag')
+        .eq('videoId', videoId);
+      
+      if (data) setVideoTags(data);
+    }
+    
+    fetchTags();
+  }, [videoId]);
+  
+  return (
+    <div className="flex flex-wrap gap-1">
+      {videoTags.map(tag => (
+        <span key={tag.tag} className="bg-[#27272f] px-2 py-0.5 text-xs rounded">
+          {tag.tag}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 export default function DashboardPage() {
@@ -38,19 +67,30 @@ export default function DashboardPage() {
   const [selectedSections, setSelectedSections] = useState<string[]>([])
   const [isSaving, setIsSaving] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState('');
 
   const [newVideo, setNewVideo] = useState<Omit<Video, 'id'>>({
-    title: '',             // Changed from video_title
+    title: '',
     description: '',
-    videoYTId: '',         // Changed from video_link
-    sectionTitle: '',      // New field
+    videoYTId: '',
+    sectionTitle: '',
     watched_fully: false,
     skill: 1,
-    OTT: false,
-    APP: false,
-    ARG: false,
-    PUTT: false,
   })
+
+  // Handle adding a tag
+  const handleAddTag = () => {
+    if (tagInput && !tags.includes(tagInput)) {
+      setTags([...tags, tagInput]);
+      setTagInput('');
+    }
+  };
+
+  // Handle removing a tag
+  const handleRemoveTag = (tagToRemove: string) => {
+    setTags(tags.filter(tag => tag !== tagToRemove));
+  };
 
   // Fetch videos
   const fetchVideos = async () => {
@@ -100,6 +140,23 @@ export default function DashboardPage() {
         return
       }
 
+      // Insert tags if any
+      if (tags.length > 0 && video) {
+        const tagsToInsert = tags.map(tag => ({
+          videoId: video.id,
+          tag: tag
+        }));
+        
+        const { error: tagError } = await supabase
+          .from('tags')
+          .insert(tagsToInsert);
+          
+        if (tagError) {
+          setErrorMsg('Video created, but failed to add tags.');
+          console.error('Tag error:', tagError);
+        }
+      }
+
       // Link to sections if any selected
       if (video && selectedSections.length > 0) {
         const relations = selectedSections.map(sectionId => ({
@@ -118,18 +175,15 @@ export default function DashboardPage() {
       await fetchVideos()
       setIsModalOpen(false)
       setNewVideo({
-        title: '',          // Changed from video_title
+        title: '',
         description: '',
-        videoYTId: '',      // Changed from video_link
-        sectionTitle: '',   // New field
+        videoYTId: '',
+        sectionTitle: '',
         watched_fully: false,
         skill: 1,
-        OTT: false,
-        APP: false,
-        ARG: false,
-        PUTT: false,
       })
       setSelectedSections([])
+      setTags([])
     } catch (err: any) {
       setErrorMsg('Unexpected error: ' + (err?.message || String(err)))
     }
@@ -165,22 +219,19 @@ export default function DashboardPage() {
                 <th className="px-4 py-3 text-left">Section Title</th>
                 <th className="px-4 py-3 text-left">Description</th>
                 <th className="px-4 py-3 text-left">YouTube ID</th>
+                <th className="px-4 py-3 text-left">Tags</th>
                 <th className="px-4 py-3 text-left">Watched</th>
                 <th className="px-4 py-3 text-left">Skill</th>
-                <th className="px-4 py-3 text-left">OTT</th>
-                <th className="px-4 py-3 text-left">APP</th>
-                <th className="px-4 py-3 text-left">ARG</th>
-                <th className="px-4 py-3 text-left">PUTT</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={11} className="text-center py-6">Loading...</td>
+                  <td colSpan={8} className="text-center py-6">Loading...</td>
                 </tr>
               ) : videos.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="text-center py-6 text-gray-400">
+                  <td colSpan={8} className="text-center py-6 text-gray-400">
                     No videos found. Click the + button to add one.
                   </td>
                 </tr>
@@ -192,12 +243,11 @@ export default function DashboardPage() {
                     <td className="px-4 py-3">{video.sectionTitle}</td>
                     <td className="px-4 py-3">{video.description}</td>
                     <td className="px-4 py-3">{video.videoYTId}</td>
+                    <td className="px-4 py-3">
+                      <TagsList videoId={video.id} />
+                    </td>
                     <td className="px-4 py-3">{video.watched_fully ? '✅' : ''}</td>
                     <td className="px-4 py-3">{video.skill}</td>
-                    <td className="px-4 py-3">{video.OTT ? '✅' : ''}</td>
-                    <td className="px-4 py-3">{video.APP ? '✅' : ''}</td>
-                    <td className="px-4 py-3">{video.ARG ? '✅' : ''}</td>
-                    <td className="px-4 py-3">{video.PUTT ? '✅' : ''}</td>
                   </tr>
                 ))
               )}
@@ -272,44 +322,45 @@ export default function DashboardPage() {
                     onChange={e => setNewVideo({ ...newVideo, skill: parseInt(e.target.value) })}
                   />
                 </div>
+                
+                {/* Tags Input Section */}
                 <div className="mb-4">
-                  <label className="flex items-center">
+                  <label className="block mb-2">Tags</label>
+                  <div className="flex items-center mb-2">
                     <input
-                      type="checkbox"
-                      checked={newVideo.OTT}
-                      onChange={() => setNewVideo({ ...newVideo, OTT: !newVideo.OTT })}
-                      className="mr-2"
+                      className="flex-1 p-2 text-black rounded-md"
+                      placeholder="Enter a tag"
+                      value={tagInput}
+                      onChange={e => setTagInput(e.target.value)}
+                      onKeyPress={e => e.key === 'Enter' && (e.preventDefault(), handleAddTag())}
                     />
-                    OTT
-                  </label>
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={newVideo.APP}
-                      onChange={() => setNewVideo({ ...newVideo, APP: !newVideo.APP })}
-                      className="mr-2"
-                    />
-                    APP
-                  </label>
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={newVideo.ARG}
-                      onChange={() => setNewVideo({ ...newVideo, ARG: !newVideo.ARG })}
-                      className="mr-2"
-                    />
-                    ARG
-                  </label>
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={newVideo.PUTT}
-                      onChange={() => setNewVideo({ ...newVideo, PUTT: !newVideo.PUTT })}
-                      className="mr-2"
-                    />
-                    PUTT
-                  </label>
+                    <button
+                      type="button"
+                      className="ml-2 px-3 py-2 bg-blue-600 text-white rounded-md"
+                      onClick={handleAddTag}
+                    >
+                      Add
+                    </button>
+                  </div>
+                  
+                  {tags.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {tags.map(tag => (
+                        <span key={tag} className="bg-[#27272f] px-2 py-1 rounded-md flex items-center">
+                          {tag}
+                          <button
+                            type="button"
+                            className="ml-2 text-gray-400 hover:text-white"
+                            onClick={() => handleRemoveTag(tag)}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
+                
                 <div className="mb-4">
                   <h2 className="text-lg mb-2">Assign to Sections:</h2>
                   <div className="max-h-40 overflow-y-auto bg-[#18181b] p-2 rounded-md">
