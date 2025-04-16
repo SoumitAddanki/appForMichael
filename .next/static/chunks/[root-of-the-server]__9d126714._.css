@@ -429,10 +429,6 @@
     top: calc(var(--spacing) * 2);
   }
 
-  .top-2\.5 {
-    top: calc(var(--spacing) * 2.5);
-  }
-
   .right-3 {
     right: calc(var(--spacing) * 3);
   }
@@ -719,6 +715,10 @@
 
   .overflow-hidden {
     overflow: hidden;
+  }
+
+  .overflow-x-auto {
+    overflow-x: auto;
   }
 
   .overflow-y-auto {
@@ -1051,12 +1051,6 @@
   }
 
   @media (hover: hover) {
-    .hover\:bg-\[\#2c2c34\]:hover {
-      background-color: #2c2c34;
-    }
-  }
-
-  @media (hover: hover) {
     .hover\:bg-\[\#23232b\]:hover {
       background-color: #23232b;
     }
@@ -1102,20 +1096,6 @@
     .hover\:underline-offset-4:hover {
       text-underline-offset: 4px;
     }
-  }
-
-  .focus\:ring-1:focus {
-    --tw-ring-shadow: var(--tw-ring-inset, ) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color, currentcolor);
-    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
-  }
-
-  .focus\:ring-gray-500:focus {
-    --tw-ring-color: var(--color-gray-500);
-  }
-
-  .focus\:outline-none:focus {
-    --tw-outline-style: none;
-    outline-style: none;
   }
 
   @media (width >= 40rem) {
