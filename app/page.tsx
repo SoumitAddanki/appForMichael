@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import { Z_UNKNOWN } from 'zlib';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -28,6 +29,27 @@ type Tag = {
   tag: string;
   videoId: string;
 };
+
+function TagsList({ videoId }: { videoId: string }) {
+  const [videoTags, setVideoTags] = useState<string[]>([]);
+  useEffect(() => {
+    supabase
+      .from('tags')
+      .select('tag')
+      .eq('videoId', videoId)
+      .then(({ data }) => setVideoTags(data ? data.map(t => t.tag) : []));
+  }, [videoId]);
+  return (
+    <div className="flex flex-wrap gap-1">
+      {videoTags.map(tag => (
+        <span key={tag} className="bg-[#27272f] px-2 py-0.5 text-xs rounded">
+          {tag}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 
 export default function DashboardPage() {
   const [videos, setVideos] = useState<Video[]>([]);
@@ -141,7 +163,7 @@ export default function DashboardPage() {
     setErrorMsg(null);
   
     const { data: video, error } = await supabase
-      .from<Video>('videos')
+      .from<Video>('videos') //unknown
       .insert([{
         title:      form.title,
         description:form.description,
