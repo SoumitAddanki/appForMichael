@@ -517,7 +517,7 @@ export default function DashboardPage() {
                 <div className="mb-4">
                   <label className="block mb-2">Video Title</label>
                   <input
-                    className="w-full p-2 text-black rounded-md"
+                    className="w-full p-2 text-white rounded-md"
                     value={form.title}
                     onChange={(e) =>
                       setForm({ ...form, title: e.target.value })
@@ -529,7 +529,7 @@ export default function DashboardPage() {
                 <div className="mb-4">
                   <label className="block mb-2">Section Title</label>
                   <input
-                    className="w-full p-2 text-black rounded-md"
+                    className="w-full p-2 text-white rounded-md"
                     value={form.sectionTitle}
                     onChange={(e) =>
                       setForm({ ...form, sectionTitle: e.target.value })
@@ -540,7 +540,7 @@ export default function DashboardPage() {
                 <div className="mb-4">
                   <label className="block mb-2">Description</label>
                   <textarea
-                    className="w-full p-2 text-black rounded-md"
+                    className="w-full p-2 text-white rounded-md"
                     value={form.description}
                     onChange={(e) =>
                       setForm({ ...form, description: e.target.value })
@@ -552,7 +552,7 @@ export default function DashboardPage() {
                 <div className="mb-4">
                   <label className="block mb-2">YouTube ID</label>
                   <input
-                    className="w-full p-2 text-black rounded-md"
+                    className="w-full p-2 text-white rounded-md"
                     value={form.videoYTId}
                     onChange={(e) =>
                       setForm({ ...form, videoYTId: e.target.value })
@@ -582,7 +582,7 @@ export default function DashboardPage() {
                     type="number"
                     min={1}
                     max={3}
-                    className="w-full p-2 text-black rounded-md"
+                    className="w-full p-2 text-white rounded-md"
                     value={form.skill}
                     onChange={(e) =>
                       setForm({ ...form, skill: Number(e.target.value) })
@@ -594,7 +594,7 @@ export default function DashboardPage() {
                   <label className="block mb-2">Tags</label>
                   <div className="flex mb-2">
                     <input
-                      className="flex-1 p-2 text-black rounded-md"
+                      className="flex-1 p-2 text-white rounded-md"
                       placeholder="Enter a tag"
                       value={tagInput}
                       onChange={(e) => setTagInput(e.target.value)}
