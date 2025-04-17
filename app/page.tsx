@@ -56,26 +56,34 @@ const statusStyles: Record<string, string> = {
   'Complete': 'text-green-400',
   'Pending': 'text-cyan-300',
   'Approved': 'text-yellow-300',
-  'Rejected': 'text-gray-400',
 };
 const statusDot: Record<string, string> = {
   'In Progress': 'bg-blue-400',
   'Complete': 'bg-green-400',
   'Pending': 'bg-cyan-300',
   'Approved': 'bg-yellow-300',
-  'Rejected': 'bg-gray-400',
 };
 const statusList = [
   { status: 'In Progress', date: 'Just now' },
   { status: 'Complete', date: 'A minute ago' },
   { status: 'Pending', date: '1 hour ago' },
   { status: 'Approved', date: 'Yesterday' },
-  { status: 'Rejected', date: 'Feb 2, 2025' },
-  { status: 'In Progress', date: 'Just now' },
-  { status: 'Complete', date: 'A minute ago' },
-  { status: 'Pending', date: '1 hour ago' },
-  { status: 'Approved', date: 'Yesterday' },
-  { status: 'Rejected', date: 'Feb 2, 2025' },
+  { status: 'Approved', date: '04/10/2025' },
+  { status: 'Approved', date: '04/10/2025' },
+  { status: 'Approved', date: '04/10/2025' },
+  { status: 'Approved', date: '04/10/2025' },
+  { status: 'In Progress', date: '04/10/2025' },
+  { status: 'Complete', date: '04/10/2025' },
+  { status: 'Pending', date: '04/10/2025' },
+  { status: 'Approved', date: '04/10/2025' },
+  { status: 'Complete', date: '04/10/2025' },
+  { status: 'Complete', date: '04/10/2025' },
+  { status: 'Pending', date: '04/10/2025' },
+  { status: 'Approved', date: '04/10/2025' },
+  { status: 'Complete', date: '04/10/2025' },
+  { status: 'Complete', date: '04/10/2025' },
+  { status: 'Pending', date: '04/10/2025' },
+  { status: 'Approved', date: '04/10/2025' },
 ];
 
 export default function DashboardPage() {
@@ -279,10 +287,10 @@ export default function DashboardPage() {
 
   // Recommendation level based on skill or section
   const getRecommendationLevel = (video: Video, idx: number) => {
-    if (video.skill === 3) return 'Advanced';
-    if (video.skill === 2) return 'Intermediate';
-    if (video.skill === 1) return 'Beginner';
-    return idx % 2 === 0 ? 'Beginner' : 'Intermediate';
+    if (video.skill === 3) return 'Pro';
+    if (video.skill === 2) return 'Advanced';
+    if (video.skill === 1) return 'Starter';
+    return idx % 2 === 0 ? 'Starter' : 'Advanced';
   };
 
   // Sidebar nav items
@@ -321,7 +329,7 @@ export default function DashboardPage() {
       <aside className="w-64 bg-[#232329] p-6 flex flex-col">
         <div className="flex items-center gap-3 mb-8">
           <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-gray-500 to-gray-800 border-2 border-gray-700"></div>
-          <span className="font-bold text-lg">Michael Dutro</span>
+          <span className="font-bold text-lg ">Michael Dutro</span>
         </div>
         {sidebarNav.map((section) => (
           <div key={section.section} className="mb-8">
@@ -518,6 +526,7 @@ export default function DashboardPage() {
                   <label className="block mb-2">Video Title</label>
                   <input
                     className="w-full p-2 text-white rounded-md"
+                    placeholder="Enter a video title"
                     value={form.title}
                     onChange={(e) =>
                       setForm({ ...form, title: e.target.value })
@@ -530,6 +539,7 @@ export default function DashboardPage() {
                   <label className="block mb-2">Section Title</label>
                   <input
                     className="w-full p-2 text-white rounded-md"
+                    placeholder="Enter a section title"
                     value={form.sectionTitle}
                     onChange={(e) =>
                       setForm({ ...form, sectionTitle: e.target.value })
@@ -541,6 +551,7 @@ export default function DashboardPage() {
                   <label className="block mb-2">Description</label>
                   <textarea
                     className="w-full p-2 text-white rounded-md"
+                    placeholder="Enter a description"
                     value={form.description}
                     onChange={(e) =>
                       setForm({ ...form, description: e.target.value })
@@ -553,6 +564,7 @@ export default function DashboardPage() {
                   <label className="block mb-2">YouTube ID</label>
                   <input
                     className="w-full p-2 text-white rounded-md"
+                    placeholder="Enter a Youtube ID"
                     value={form.videoYTId}
                     onChange={(e) =>
                       setForm({ ...form, videoYTId: e.target.value })
@@ -577,18 +589,17 @@ export default function DashboardPage() {
                 </div>
                 {/* Skill */}
                 <div className="mb-4">
-                  <label className="block mb-2">Skill</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={3}
-                    className="w-full p-2 text-white rounded-md"
-                    value={form.skill}
-                    onChange={(e) =>
-                      setForm({ ...form, skill: Number(e.target.value) })
-                    }
-                  />
-                </div>
+                <label className="block mb-2">Skill</label>
+                <select
+                  className="w-full p-2 text-white rounded-md"
+                  value={form.skill}
+                  onChange={e => setForm({ ...form, skill: Number(e.target.value) })}
+                >
+                  <option className = "w-full p-2 text-black rounded-md" value={1}>Starter</option>
+                  <option className = "w-full p-2 text-black rounded-md" value={2}>Advanced</option>
+                  <option className = "w-full p-2 text-black rounded-md" value={3}>Pro</option>
+                </select>
+              </div>
                 {/* Tags */}
                 <div className="mb-4">
                   <label className="block mb-2">Tags</label>
