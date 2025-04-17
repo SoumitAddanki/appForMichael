@@ -501,7 +501,7 @@ export default function DashboardPage() {
           {/* Pagination */}
           <div className="flex justify-end mt-4 gap-2 text-gray-400 items-center">
             <button className="px-3 py-1 rounded bg-[#232329]">{'<'}</button>
-            <button className="px-3 py-1 rounded bg-[#232329] text-white">Button</button>
+            <button className="px-3 py-1 rounded bg-[#232329] text-white">1</button>
             <button className="px-3 py-1 rounded bg-[#232329]">2</button>
             <button className="px-3 py-1 rounded bg-[#232329]">3</button>
             <button className="px-3 py-1 rounded bg-[#232329]">4</button>
