@@ -33,9 +33,9 @@ function TagsList({ videoId }: { videoId: string }) {
   const [videoTags, setVideoTags] = useState<string[]>([]);
   useEffect(() => {
     supabase
-      .from('tags')
+      .from('video_tag') // correct table name
       .select('tag')
-      .eq('videoId', videoId)
+      .eq('videoId', videoId) // correct column name
       .then(({ data }) => setVideoTags(data ? data.map(t => t.tag) : []));
   }, [videoId]);
   return (
@@ -48,6 +48,7 @@ function TagsList({ videoId }: { videoId: string }) {
     </div>
   );
 }
+
 
 // Status pill color mapping
 const statusStyles: Record<string, string> = {
@@ -88,6 +89,7 @@ export default function DashboardPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [editingVideo, setEditingVideo] = useState<Video | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [form, setForm] = useState<Omit<Video, 'id'>>({
     title: '',
     description: '',
@@ -145,7 +147,7 @@ export default function DashboardPage() {
     });
     // load its tags
     const { data: tagData } = await supabase
-      .from<Tag>('tags')
+      .from<Tag>('video_tag')
       .select('tag')
       .eq('videoId', video.id);
     setTags(tagData?.map((t) => t.tag) || []);
@@ -177,7 +179,7 @@ export default function DashboardPage() {
     );
   };
 
-  // submit handlers
+  // Submit handlers
   const handleSubmit = (e: React.FormEvent) =>
     editingVideo ? updateVideo(e) : addVideo(e);
 
@@ -247,23 +249,40 @@ export default function DashboardPage() {
     setIsModalOpen(false);
   };
 
+  // Delete selected videos
+  const deleteSelected = async () => {
+    if (selectedIds.length === 0) return;
+    
+    await supabase.from('videos').delete().in('id', selectedIds);
+    setSelectedIds([]);
+    fetchVideos();
+  };
+
   // helper to sync tags & sections
   const syncTagsAndSections = async (videoId: string) => {
-    await supabase.from('tags').delete().eq('videoId', videoId);
+    await supabase.from('video_tag').delete().eq('videoId', videoId);
     if (tags.length) {
-      await supabase.from('tags').insert(
+      await supabase.from('video_tag').insert(
         tags.map((tag) => ({ videoId, tag }))
       );
     }
-    await supabase.from('section_videos').delete().eq('video_id', videoId);
+    await supabase.from('section_videos').delete().eq('videoId', videoId);
     if (selectedSections.length) {
       await supabase.from('section_videos').insert(
         selectedSections.map((sid) => ({
-          video_id: sid,
+          video_id: videoId,
           section_id: sid,
         }))
       );
     }
+  };
+
+  // Recommendation level based on skill or section
+  const getRecommendationLevel = (video: Video, idx: number) => {
+    if (video.skill === 3) return 'Advanced';
+    if (video.skill === 2) return 'Intermediate';
+    if (video.skill === 1) return 'Beginner';
+    return idx % 2 === 0 ? 'Beginner' : 'Intermediate';
   };
 
   // Sidebar nav items
@@ -278,14 +297,14 @@ export default function DashboardPage() {
     {
       section: 'Dashboards',
       items: [
-        { name: 'Home', icon: '🟣', active: true },
-        { name: 'Files', icon: '📁' },
+        { name: 'Home', active: true },
+        { name: 'Files'},
       ],
     },
     {
       section: 'Pages',
       items: [
-        { name: 'User Profile', icon: '👤' },
+        { name: 'User Profile'},
         { name: 'Overview' },
         { name: 'Projects' },
         { name: 'Campaigns' },
@@ -295,12 +314,6 @@ export default function DashboardPage() {
       ],
     },
   ];
-
-  // Recommendation level logic
-  const getRecommendationLevel = (idx: number) => {
-    if (idx === 7 || idx === 8) return 'Advanced';
-    return idx % 2 === 0 ? 'Beginner' : 'Intermediate';
-  };
 
   return (
     <div className="flex min-h-screen bg-[#18181b] text-white">
@@ -342,15 +355,7 @@ export default function DashboardPage() {
           <span>/</span>
           <span className="text-white">Home</span>
           <div className="flex-1"></div>
-          <input
-            className="bg-[#232329] rounded px-4 py-1 text-sm placeholder-gray-500 focus:outline-none"
-            placeholder="Search"
-            style={{ width: 180 }}
-            disabled
-          />
-          <span className="ml-4 text-xl">☀️</span>
-          <span className="text-xl">🔔</span>
-          <span className="text-xl">🖥️</span>
+
         </div>
 
         {/* Video List */}
@@ -366,15 +371,22 @@ export default function DashboardPage() {
             <button className="bg-[#232329] rounded-lg px-3 py-1">
               <span className="text-gray-400">≡</span>
             </button>
+            {selectedIds.length > 0 && (
+              <button
+                onClick={deleteSelected}
+                className="bg-red-600 hover:bg-red-700 px-3 py-1 text-sm rounded ml-2"
+              >
+                Delete Selected
+              </button>
+            )}
             <div className="flex-1"></div>
             <div className="relative">
               <input
                 className="bg-[#232329] rounded px-4 py-1 text-sm placeholder-gray-500 focus:outline-none"
                 placeholder="Search"
                 style={{ width: 180 }}
-                disabled
               />
-              <span className="absolute right-3 top-1.5 text-gray-500">🔍</span>
+              <span className="absolute right-3 top-1.5 text-gray-500"></span>
             </div>
           </div>
 
@@ -384,27 +396,38 @@ export default function DashboardPage() {
               <thead>
                 <tr className="text-gray-400">
                   <th className="px-4 py-3 text-left font-normal">
-                    <input type="checkbox" className="accent-blue-500" />
+                    <input 
+                      type="checkbox" 
+                      className="accent-blue-500"
+                      checked={selectedIds.length === videos.length && videos.length > 0}
+                      onChange={e => {
+                        if (e.target.checked) {
+                          setSelectedIds(videos.map(v => v.id));
+                        } else {
+                          setSelectedIds([]);
+                        }
+                      }}
+                    />
                   </th>
                   <th className="px-4 py-3 text-left font-normal">Video ID</th>
-                  <th className="px-4 py-3 text-left font-normal">User</th>
                   <th className="px-4 py-3 text-left font-normal">Video Title</th>
                   <th className="px-4 py-3 text-left font-normal">Recommendation Level</th>
                   <th className="px-4 py-3 text-left font-normal">Date</th>
                   <th className="px-4 py-3 text-left font-normal">Upload Status</th>
+                  <th className="px-4 py-3 text-left font-normal">Tags</th>
                   <th className="px-4 py-3 text-left font-normal">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={8} className="text-center py-6">
+                    <td colSpan={9} className="text-center py-6">
                       Loading...
                     </td>
                   </tr>
                 ) : videos.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="text-center py-6 text-gray-400">
+                    <td colSpan={9} className="text-center py-6 text-gray-400">
                       No videos found.
                     </td>
                   </tr>
@@ -417,19 +440,29 @@ export default function DashboardPage() {
                         className={`border-b border-[#2c2c34] hover:bg-[#23232b]`}
                       >
                         <td className="px-4 py-3">
-                          <input type="checkbox" checked={idx === 3} readOnly className="accent-blue-500" />
+                          <input 
+                            type="checkbox" 
+                            className="accent-blue-500" 
+                            checked={selectedIds.includes(v.id)}
+                            onChange={e => {
+                              if (e.target.checked) {
+                                setSelectedIds(ids => [...ids, v.id]);
+                              } else {
+                                setSelectedIds(ids => ids.filter(id => id !== v.id));
+                              }
+                            }}
+                          />
                         </td>
                         <td className="px-4 py-3">{`#CM98${(idx + 1).toString().padStart(2, '0')}`}</td>
-                        <td className="px-4 py-3">Name</td>
                         <td className="px-4 py-3">{v.title}</td>
-                        <td className="px-4 py-3 flex items-center gap-2">
-                          {getRecommendationLevel(idx)}
+                        <td className="px-4 py-3">
+                          {getRecommendationLevel(v, idx)}
                           {idx === 4 && (
-                            <span className="ml-2 text-gray-400 text-xs">📋</span>
+                            <span className="ml-2 text-gray-400 text-xs"></span>
                           )}
                         </td>
                         <td className="px-4 py-3 flex items-center gap-2">
-                          <span className="text-gray-400">📅</span>
+                          <span className="text-gray-400"></span>
                           {date}
                         </td>
                         <td className="px-4 py-3">
@@ -437,6 +470,9 @@ export default function DashboardPage() {
                             <span className={`w-2 h-2 rounded-full ${statusDot[status]}`}></span>
                             {status}
                           </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <TagsList videoId={v.id} /> 
                         </td>
                         <td className="px-4 py-3">
                           <button
