@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { Z_UNKNOWN } from 'zlib';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -50,6 +49,33 @@ function TagsList({ videoId }: { videoId: string }) {
   );
 }
 
+// Status pill color mapping
+const statusStyles: Record<string, string> = {
+  'In Progress': 'text-blue-400',
+  'Complete': 'text-green-400',
+  'Pending': 'text-cyan-300',
+  'Approved': 'text-yellow-300',
+  'Rejected': 'text-gray-400',
+};
+const statusDot: Record<string, string> = {
+  'In Progress': 'bg-blue-400',
+  'Complete': 'bg-green-400',
+  'Pending': 'bg-cyan-300',
+  'Approved': 'bg-yellow-300',
+  'Rejected': 'bg-gray-400',
+};
+const statusList = [
+  { status: 'In Progress', date: 'Just now' },
+  { status: 'Complete', date: 'A minute ago' },
+  { status: 'Pending', date: '1 hour ago' },
+  { status: 'Approved', date: 'Yesterday' },
+  { status: 'Rejected', date: 'Feb 2, 2025' },
+  { status: 'In Progress', date: 'Just now' },
+  { status: 'Complete', date: 'A minute ago' },
+  { status: 'Pending', date: '1 hour ago' },
+  { status: 'Approved', date: 'Yesterday' },
+  { status: 'Rejected', date: 'Feb 2, 2025' },
+];
 
 export default function DashboardPage() {
   const [videos, setVideos] = useState<Video[]>([]);
@@ -61,8 +87,6 @@ export default function DashboardPage() {
   const [tagInput, setTagInput] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  // form state
   const [editingVideo, setEditingVideo] = useState<Video | null>(null);
   const [form, setForm] = useState<Omit<Video, 'id'>>({
     title: '',
@@ -161,84 +185,76 @@ export default function DashboardPage() {
     e.preventDefault();
     setIsSaving(true);
     setErrorMsg(null);
-  
+
     const { data: video, error } = await supabase
-      .from<Video>('videos') //unknown
+      .from<Video>('videos')
       .insert([{
         title:      form.title,
         description:form.description,
-        videoYTId:  form.videoYTId,    // <-- camelCase
-        sectionTitle: form.sectionTitle,// <-- camelCase
+        videoYTId:  form.videoYTId,
+        sectionTitle: form.sectionTitle,
         watched_fully: form.watched_fully,
         skill:      form.skill,
       }])
       .select()
       .single();
-  
+
     if (error || !video) {
-      console.error('Insert error:', error);
       setErrorMsg(error?.message || 'Insert failed');
       setIsSaving(false);
       return;
     }
-  
+
     await syncTagsAndSections(video.id);
     await fetchVideos();
     setIsModalOpen(false);
     setIsSaving(false);
   };
 
-const updateVideo = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!editingVideo) return;
-  setIsSaving(true);
-  setErrorMsg(null);
+  const updateVideo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingVideo) return;
+    setIsSaving(true);
+    setErrorMsg(null);
 
-  // 1) Update and ask for the new row back:
-  const { data: updated, error } = await supabase
-    .from<Video>('videos')
-    .update(
-      {
-        title:         form.title,
-        description:   form.description,
-        videoYTId:     form.videoYTId,
-        sectionTitle:  form.sectionTitle,
-        watched_fully: form.watched_fully,
-        skill:         form.skill,
-      },
-      { returning: 'representation' }
-    )
-    .eq('id', editingVideo.id)
-    .select()
-    .single();
+    const { data: updated, error } = await supabase
+      .from<Video>('videos')
+      .update(
+        {
+          title:         form.title,
+          description:   form.description,
+          videoYTId:     form.videoYTId,
+          sectionTitle:  form.sectionTitle,
+          watched_fully: form.watched_fully,
+          skill:         form.skill,
+        },
+        { returning: 'representation' }
+      )
+      .eq('id', editingVideo.id)
+      .select()
+      .single();
 
-  if (error) {
-    console.error('Update error:', error);
-    setErrorMsg(error.message);
+    if (error) {
+      setErrorMsg(error.message);
+      setIsSaving(false);
+      return;
+    }
+
+    await syncTagsAndSections(editingVideo.id);
+    await fetchVideos();
+    setEditingVideo(null);
     setIsSaving(false);
-    return;
-  }
-
-  // 2) Sync tags & sections
-  await syncTagsAndSections(editingVideo.id);
-
-  // 3) Refresh list & close
-  await fetchVideos();
-  setEditingVideo(null);
-  setIsSaving(false);
-  setIsModalOpen(false);
-};
+    setIsModalOpen(false);
+  };
 
   // helper to sync tags & sections
   const syncTagsAndSections = async (videoId: string) => {
-    // tags
     await supabase.from('tags').delete().eq('videoId', videoId);
     if (tags.length) {
       await supabase.from('tags').insert(
         tags.map((tag) => ({ videoId, tag }))
       );
     }
-    // sections
     await supabase.from('section_videos').delete().eq('video_id', videoId);
     if (selectedSections.length) {
       await supabase.from('section_videos').insert(
@@ -250,85 +266,204 @@ const updateVideo = async (e: React.FormEvent) => {
     }
   };
 
+  // Sidebar nav items
+  const sidebarNav = [
+    {
+      section: 'Favorites',
+      items: [
+        { name: 'Overview' },
+        { name: 'Projects' },
+      ],
+    },
+    {
+      section: 'Dashboards',
+      items: [
+        { name: 'Home', icon: '🟣', active: true },
+        { name: 'Files', icon: '📁' },
+      ],
+    },
+    {
+      section: 'Pages',
+      items: [
+        { name: 'User Profile', icon: '👤' },
+        { name: 'Overview' },
+        { name: 'Projects' },
+        { name: 'Campaigns' },
+        { name: 'Documents' },
+        { name: 'Followers' },
+        { name: 'Account' },
+      ],
+    },
+  ];
+
+  // Recommendation level logic
+  const getRecommendationLevel = (idx: number) => {
+    if (idx === 7 || idx === 8) return 'Advanced';
+    return idx % 2 === 0 ? 'Beginner' : 'Intermediate';
+  };
+
   return (
     <div className="flex min-h-screen bg-[#18181b] text-white">
       {/* Sidebar */}
-      <aside className="w-64 bg-[#232329] p-6">
-        <div className="font-bold text-lg">Michael Dutro</div>
+      <aside className="w-64 bg-[#232329] p-6 flex flex-col">
+        <div className="flex items-center gap-3 mb-8">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-gray-500 to-gray-800 border-2 border-gray-700"></div>
+          <span className="font-bold text-lg">Michael Dutro</span>
+        </div>
+        {sidebarNav.map((section) => (
+          <div key={section.section} className="mb-8">
+            <div className="text-xs uppercase text-gray-400 mb-2">{section.section}</div>
+            <ul className="space-y-1">
+              {section.items.map((item) => (
+                <li key={item.name}>
+                  <div
+                    className={`flex items-center px-3 py-2 rounded-lg cursor-pointer ${
+                      item.active
+                        ? 'bg-[#323236] text-white font-semibold'
+                        : 'text-gray-300 hover:text-white'
+                    }`}
+                  >
+                    {item.icon && <span className="mr-2">{item.icon}</span>}
+                    {item.name}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
       </aside>
 
       {/* Main */}
-      <main className="flex-1 p-10">
-        <div className="flex justify-between mb-6">
-          <h1 className="text-2xl font-semibold">Video List</h1>
-          <button
-            onClick={openAddModal}
-            className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded"
-          >
-            + Add Video
-          </button>
+      <main className="flex-1 p-0">
+        {/* Top Bar */}
+        <div className="flex items-center gap-3 text-gray-400 px-10 pt-7 pb-2">
+          <span className="text-xl">★</span>
+          <span className="font-semibold text-gray-500">Dashboards</span>
+          <span>/</span>
+          <span className="text-white">Home</span>
+          <div className="flex-1"></div>
+          <input
+            className="bg-[#232329] rounded px-4 py-1 text-sm placeholder-gray-500 focus:outline-none"
+            placeholder="Search"
+            style={{ width: 180 }}
+            disabled
+          />
+          <span className="ml-4 text-xl">☀️</span>
+          <span className="text-xl">🔔</span>
+          <span className="text-xl">🖥️</span>
         </div>
 
-        {/* Table */}
-        <div className="bg-[#232329] rounded-lg overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead>
-              <tr className="bg-[#232329] text-gray-400">
-                <th className="px-4 py-3 text-left">ID</th>
-                <th className="px-4 py-3 text-left">Title</th>
-                <th className="px-4 py-3 text-left">Section</th>
-                <th className="px-4 py-3 text-left">Description</th>
-                <th className="px-4 py-3 text-left">YouTube ID</th>
-                <th className="px-4 py-3 text-left">Tags</th>
-                <th className="px-4 py-3 text-left">Watched</th>
-                <th className="px-4 py-3 text-left">Skill</th>
-                <th className="px-4 py-3 text-left">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={9} className="text-center py-6">
-                    Loading...
-                  </td>
+        {/* Video List */}
+        <div className="px-10">
+          <h1 className="text-lg font-semibold mb-4 mt-4">Video List</h1>
+
+          {/* Actions */}
+          <div className="flex items-center gap-2 mb-3">
+            <button onClick={openAddModal} className="bg-[#232329] rounded-lg px-3 py-1 text-lg">+</button>
+            <button className="bg-[#232329] rounded-lg px-3 py-1">
+              <span className="text-gray-400">⏷</span>
+            </button>
+            <button className="bg-[#232329] rounded-lg px-3 py-1">
+              <span className="text-gray-400">≡</span>
+            </button>
+            <div className="flex-1"></div>
+            <div className="relative">
+              <input
+                className="bg-[#232329] rounded px-4 py-1 text-sm placeholder-gray-500 focus:outline-none"
+                placeholder="Search"
+                style={{ width: 180 }}
+                disabled
+              />
+              <span className="absolute right-3 top-1.5 text-gray-500">🔍</span>
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="bg-[#232329] rounded-lg overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="text-gray-400">
+                  <th className="px-4 py-3 text-left font-normal">
+                    <input type="checkbox" className="accent-blue-500" />
+                  </th>
+                  <th className="px-4 py-3 text-left font-normal">Video ID</th>
+                  <th className="px-4 py-3 text-left font-normal">User</th>
+                  <th className="px-4 py-3 text-left font-normal">Video Title</th>
+                  <th className="px-4 py-3 text-left font-normal">Recommendation Level</th>
+                  <th className="px-4 py-3 text-left font-normal">Date</th>
+                  <th className="px-4 py-3 text-left font-normal">Upload Status</th>
+                  <th className="px-4 py-3 text-left font-normal">Actions</th>
                 </tr>
-              ) : videos.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="text-center py-6 text-gray-400">
-                    No videos found.
-                  </td>
-                </tr>
-              ) : (
-                videos.map((v) => (
-                  <tr
-                    key={v.id}
-                    className="border-b border-[#2c2c34] hover:bg-[#23232b]"
-                  >
-                    <td className="px-4 py-3">{v.id}</td>
-                    <td className="px-4 py-3">{v.title}</td>
-                    <td className="px-4 py-3">{v.sectionTitle}</td>
-                    <td className="px-4 py-3">{v.description}</td>
-                    <td className="px-4 py-3">{v.videoYTId}</td>
-                    <td className="px-4 py-3">
-                      {/* reuse your TagsList */}
-                    </td>
-                    <td className="px-4 py-3">
-                      {v.watched_fully ? '✅' : ''}
-                    </td>
-                    <td className="px-4 py-3">{v.skill}</td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => openEditModal(v)}
-                        className="text-blue-400 hover:underline"
-                      >
-                        Edit
-                      </button>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={8} className="text-center py-6">
+                      Loading...
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : videos.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="text-center py-6 text-gray-400">
+                      No videos found.
+                    </td>
+                  </tr>
+                ) : (
+                  videos.map((v, idx) => {
+                    const { status, date } = statusList[idx % statusList.length];
+                    return (
+                      <tr
+                        key={v.id}
+                        className={`border-b border-[#2c2c34] hover:bg-[#23232b]`}
+                      >
+                        <td className="px-4 py-3">
+                          <input type="checkbox" checked={idx === 3} readOnly className="accent-blue-500" />
+                        </td>
+                        <td className="px-4 py-3">{`#CM98${(idx + 1).toString().padStart(2, '0')}`}</td>
+                        <td className="px-4 py-3">Name</td>
+                        <td className="px-4 py-3">{v.title}</td>
+                        <td className="px-4 py-3 flex items-center gap-2">
+                          {getRecommendationLevel(idx)}
+                          {idx === 4 && (
+                            <span className="ml-2 text-gray-400 text-xs">📋</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 flex items-center gap-2">
+                          <span className="text-gray-400">📅</span>
+                          {date}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex items-center gap-2 ${statusStyles[status]}`}>
+                            <span className={`w-2 h-2 rounded-full ${statusDot[status]}`}></span>
+                            {status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() => openEditModal(v)}
+                            className="text-blue-400 hover:underline"
+                          >
+                            Edit
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          <div className="flex justify-end mt-4 gap-2 text-gray-400 items-center">
+            <button className="px-3 py-1 rounded bg-[#232329]">{'<'}</button>
+            <button className="px-3 py-1 rounded bg-[#232329] text-white">Button</button>
+            <button className="px-3 py-1 rounded bg-[#232329]">2</button>
+            <button className="px-3 py-1 rounded bg-[#232329]">3</button>
+            <button className="px-3 py-1 rounded bg-[#232329]">4</button>
+            <button className="px-3 py-1 rounded bg-[#232329]">5</button>
+            <button className="px-3 py-1 rounded bg-[#232329]">{'>'}</button>
+          </div>
         </div>
 
         {/* Modal (Add/Edit) */}
